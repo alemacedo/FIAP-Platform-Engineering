@@ -59,57 +59,59 @@ resource "aws_instance" "web" {
   key_name               = "${var.KEY_NAME}"
 
   # User data para instalar e iniciar nginx
-  user_data = <<-EOF
-    #!/bin/bash
-    set -e
-    exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
-    
-    echo "=== Iniciando instalação do nginx ==="
-    yum update -y
-    yum install -y nginx
-    
-    echo "=== Iniciando nginx ==="
-    systemctl start nginx
-    systemctl enable nginx
-    
-    echo "=== Criando página HTML ==="
-    cat > /usr/share/nginx/html/index.html <<'HTML'
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>Trabalho Final - Platform Engineering</title>
-      <style>
-        body { font-family: Arial, sans-serif; margin: 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
-        .container { background: rgba(0,0,0,0.7); padding: 30px; border-radius: 10px; max-width: 600px; margin: 0 auto; }
-        h1 { color: #4ade80; }
-        .info { background: rgba(255,255,255,0.1); padding: 15px; margin: 10px 0; border-radius: 5px; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <h1>✅ Trabalho Final - Platform Engineering</h1>
-        <div class="info">
-          <p><strong>Ambiente:</strong> ${terraform.workspace}</p>
-          <p><strong>Instância:</strong> nginx-${terraform.workspace}-${count.index}</p>
-          <p><strong>IP Privado:</strong> <span id="private-ip">Carregando...</span></p>
-          <p><strong>Timestamp:</strong> <span id="timestamp">Carregando...</span></p>
-        </div>
-        <p>✨ Nginx está rodando com sucesso!</p>
-      </div>
-      <script>
-        fetch('http://169.254.169.254/latest/meta-data/local-ipv4')
-          .then(r => r.text())
-          .then(ip => document.getElementById('private-ip').textContent = ip)
-          .catch(() => document.getElementById('private-ip').textContent = 'Indisponível');
-        document.getElementById('timestamp').textContent = new Date().toLocaleString('pt-BR');
-      </script>
-    </body>
-    </html>
-    HTML
-    
-    systemctl reload nginx
-    echo "=== Nginx instalado e iniciado com sucesso! ==="
-  EOF
+  user_data = base64encode(<<-EOF
+#!/bin/bash
+set -e
+
+echo "=== Atualizando sistema ==="
+yum update -y
+
+echo "=== Instalando nginx via amazon-linux-extras ==="
+amazon-linux-extras install nginx1 -y
+
+echo "=== Iniciando nginx ==="
+systemctl start nginx
+systemctl enable nginx
+
+echo "=== Criando página HTML personalizada ==="
+cat > /usr/share/nginx/html/index.html <<'HTML'
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Trabalho Final - Platform Engineering</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+    .container { background: rgba(0,0,0,0.7); padding: 30px; border-radius: 10px; max-width: 600px; margin: 0 auto; }
+    h1 { color: #4ade80; }
+    .info { background: rgba(255,255,255,0.1); padding: 15px; margin: 10px 0; border-radius: 5px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>✅ Trabalho Final - Platform Engineering</h1>
+    <div class="info">
+      <p><strong>Ambiente:</strong> ${terraform.workspace}</p>
+      <p><strong>Instância:</strong> nginx-${terraform.workspace}-${count.index}</p>
+      <p><strong>IP Privado:</strong> <span id="private-ip">Carregando...</span></p>
+      <p><strong>Timestamp:</strong> <span id="timestamp">Carregando...</span></p>
+    </div>
+    <p>✨ Nginx está rodando com sucesso!</p>
+  </div>
+  <script>
+    fetch('http://169.254.169.254/latest/meta-data/local-ipv4')
+      .then(r => r.text())
+      .then(ip => document.getElementById('private-ip').textContent = ip)
+      .catch(() => document.getElementById('private-ip').textContent = 'Indisponível');
+    document.getElementById('timestamp').textContent = new Date().toLocaleString('pt-BR');
+  </script>
+</body>
+</html>
+HTML
+
+systemctl reload nginx
+echo "=== Nginx instalado e iniciado com sucesso! ==="
+EOF
+  )
 
   tags = {
     Name = "nginx-${terraform.workspace}-${count.index}"
